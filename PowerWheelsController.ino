@@ -9,6 +9,7 @@
  * 5v -> throttle red
  * a0 -> throttle green
  * 9 -> motor driver pwm
+ * wire motor driver inputs in parallel to control 2 motors
  */
 
 int debug = 0;
