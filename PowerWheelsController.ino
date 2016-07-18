@@ -12,8 +12,16 @@
  * wire motor driver inputs in parallel to control 2 motors
  */
 
-int debug = 0;
+#define THROTTLE_INPUT_PIN A0
+#define MOTOR_OUTPUT_PIN 9
+
+#define THROTTLE_DISCONNECT 150
+#define THROTTLE_LOW 200
+#define THROTTLE_HIGH 860
+#define THROTTLE_SHORT 900
+
 // for detecting if connected to a computer or not
+int debug = 0;
 
 // the setup routine runs once when you press reset:
 void setup() {
@@ -37,32 +45,41 @@ void setup() {
 // the loop routine runs over and over again forever:
 void loop() {
   // read the input on analog pin 0:
-  int sensorValue = analogRead(A0);
+  int throttleRaw = analogRead(THROTTLE_INPUT_PIN);
+
   // print out the value you read:
-  //Serial.println(sensorValue);
-  // range: 200 - 850
-  if (sensorValue < 150) or (sensorValue > 900)
+  ////Serial.println(sensorValue);
+
+  int throttleAdjusted;
+
+  if ((throttleRaw < THROTTLE_DISCONNECT) or (throttleRaw > THROTTLE_SHORT))  // safety check
   {
     // error: out-of-range - throttle may be disconnected
-    sensorValue = 200;
+    throttleAdjusted = THROTTLE_LOW;
   }
-  else if (sensorValue < 200)
+  else if (throttleRaw < THROTTLE_LOW)  // avoid jitter near minimum throttle
   {
-    // avoid jitter near minimum throttle
-    sensorValue = 200;
+    throttleAdjusted = THROTTLE_LOW;
   }
-  else if (sensorValue > 850)
+  else if (throttleRaw > THROTTLE_HIGH)  // avoid jitter near maximum throttle
   {
-    // avoid jitter near maximum throttle
-    sensorValue = 850;
+    throttleAdjusted = THROTTLE_HIGH;
   }
-   int pwm = map(sensorValue, 200, 850, 0, 255);
-   analogWrite(9, pwm);
-   if (debug)
-   {  
-    Serial.println("pwm " + pwm + " raw: " + sensorValue);
-   }
+  else  // Use raw throttle value
+  {
+    throttleAdjusted = throttleRaw;
+  }
+  
+  int pwm = map(throttleAdjusted, THROTTLE_LOW, THROTTLE_HIGH, 0, 255);
+  analogWrite(MOTOR_OUTPUT_PIN, pwm);
+  
+  if (debug)
+  {  
+    Serial.print("raw: ");
+    Serial.print(throttleRaw);
+    Serial.print(" pwm: ");
+    Serial.println(pwm);
+  }
   
   delay(1);        // delay in between reads for stability
-  
 }
