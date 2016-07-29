@@ -24,7 +24,7 @@
 #define THROTTLE_HIGH 860
 #define THROTTLE_SHORT 900
 ////#define DEBUG (d) Serial.println(#d + ": " + d); 
-#define MAX_CURRENT 5 // amps
+#define MAX_CURRENT 35 // amps
 
 
 float pinvoltage_to_amps(int pinvoltage)
@@ -34,6 +34,36 @@ float pinvoltage_to_amps(int pinvoltage)
   float amps = (millivolts-50.0f)/20.0f; // 50 millivolt offset, 20 millivolts per amp
   return amps;
 }
+
+float PID (float Actual, float targetPoint)
+{   //
+     // PID START
+   static float Last = 0;
+   const float kP = 2.0f; //DEBUG(kP)
+   const float kI = 0.0f;
+   const float kD = 0.0f;  
+   
+   float Error = targetPoint - Actual;
+  
+   static float Integral;
+   const float IntThresh = 1000.0f; 
+   //const float ScaleFactor = 1.0f;
+   // THIS CHECK DOESN'T DO ANYTHING RIGHT NOW
+   if (abs(Error) < IntThresh){ // prevent integral 'windup'
+   Integral = Integral + Error; // accumulate the error integral
+   }
+   else {
+   Integral=0; // zero it if out of bounds
+   }
+   float P = Error*kP; // calc proportional term
+   float I = 0;//Integral*kI; // integral term
+   float D = (Last-Actual)*kD; // derivative term
+   float Drive = P + I + D; // Total drive = P+I+D
+   
+   Last = Actual; 
+   return Drive;
+}
+
 // for detecting if connected to a computer or not
 int debug = 0;
 
@@ -55,11 +85,11 @@ void setup() {
   }
   
 }
-float Last = 0;
+
 // the loop routine runs over and over again forever:
 void loop() {
   // read the input on analog pin 0:
-  int throttleRaw = analogRead(THROTTLE_INPUT_PIN); //
+  int throttleRaw = analogRead(THROTTLE_INPUT_PIN); 
    
   // print out the value you read:
   ////Serial.println(sensorValue);
@@ -83,68 +113,62 @@ void loop() {
   {
     throttleAdjusted = throttleRaw;
   }
+  float targetPoint = map(throttleAdjusted, THROTTLE_LOW, THROTTLE_HIGH, 0, MAX_CURRENT);
   
-int motor_currentsense_pin_1 = analogRead(MOTOR_CURRENT_SENSE_OUTPUT_1);
+  int motor_currentsense_pin_1 = analogRead(MOTOR_CURRENT_SENSE_OUTPUT_1);
   int motor_currentsense_pin_2 = analogRead(MOTOR_CURRENT_SENSE_OUTPUT_2);
   
   float motor_amps_1 = pinvoltage_to_amps(motor_currentsense_pin_1);
   float motor_amps_2 = pinvoltage_to_amps(motor_currentsense_pin_2);
   
-  float total_motor_amps = motor_amps_1;// + motor_amps_2;
-  
-   
-   // PID START
-   
-   float kP = 0.2f; //DEBUG(kP)
-   float kI = 0.2f;
-   float kD = 0.2f;
-   
-   
-   float Actual = total_motor_amps; //analogRead(Position);
-  
-   float targetPoint = map(throttleAdjusted, THROTTLE_LOW, THROTTLE_HIGH, 0, MAX_CURRENT);
-   float Error = targetPoint - Actual;
-  
-   float Integral;
-   float IntThresh = 1000.0f; 
-   float ScaleFactor = 1.0f;
-   // THIS CHECK DOESN'T DO ANYTHING RIGHT NOW
-   if (abs(Error) < IntThresh){ // prevent integral 'windup'
-   Integral = Integral + Error; // accumulate the error integral
-   }
-   else {
-   Integral=0; // zero it if out of bounds
-   }
-   float P = Error*kP; // calc proportional term
-   float I = Integral*kI; // integral term
-   float D = (Last-Actual)*kD; // derivative term
-   float Drive = P + I + D; // Total drive = P+I+D
-   
-   Drive = map(Drive, 0, MAX_CURRENT, 0, 255);//(Drive*1.0f)/ScaleFactor; // scale Drive to be in the range 0-255
+  float total_motor_amps = motor_amps_1 + motor_amps_2;
 
-   analogWrite(MOTOR_OUTPUT_PIN,Drive); // send PWM command to motor board
-   Last = Actual; 
+  float Drive = PID(total_motor_amps, targetPoint);
+
+  if (Drive < 0)
+  {
+    Drive = 0;
+  }
+  
+  float pwm = map(Drive, 0, MAX_CURRENT, 0, 255);//(Drive*1.0f)/ScaleFactor; // scale Drive to be in the range 0-255
+
+  if (pwm < 0)
+  {
+    digitalWrite(MOTOR_OUTPUT_PIN, LOW);
+  }
+  else if (pwm > 254)
+  {
+    if (pwm < 0)
+  {
+    digitalWrite(MOTOR_OUTPUT_PIN, HIGH);
+  }
+  else
+  {
+    analogWrite(MOTOR_OUTPUT_PIN, pwm); // send PWM command to motor board
+  }
+  
+
 
   
   if (debug)
   {  
-    Serial.print("raw: ");
+    
+    Serial.print("  throttleRaw: ");
     Serial.print(throttleRaw);
+
+    Serial.print("  total_motor_amps: ");
+    Serial.print(total_motor_amps);
+
+    Serial.print("  targetPoint: ");
+    Serial.print(targetPoint);
+
+    Serial.print("  Drive: ");
+    Serial.print(Drive);
     
-    Serial.print("actual: ");
-    Serial.print(Actual);
-    Serial.print(" P: ");
-    Serial.print(P);
-    Serial.print(" I: ");
-    Serial.print(I);
-    Serial.print(" D: ");
-    Serial.print(D);
-    Serial.print(" error: ");
-    Serial.print(Error);
-    
-    Serial.print(" Drive: ");
-    Serial.println(Drive);
+    Serial.print("  pwm: ");
+    Serial.println(pwm);
+  
   }
   
-  delay(10);        // delay in between reads for stability
+  delay(1000);        // delay in between reads for stability
 }
