@@ -1,0 +1,7 @@
+<launch>
+  <param name="serial_port" value="/dev/ttyUSB0" />
+
+  <node pkg="joy" type="joy_node" name="joy_node" />
+  <node pkg="yeti_snowplow" type="joystick" name="joystick" />
+  <node pkg="yeti_snowplow" type="roboteq" name="roboteq" output="screen" />
+</launch>
